@@ -2,6 +2,7 @@
 #include "Matrix4x4.h"
 #include "ProjectionMatrix.h"
 #include "ShaderProgram.h"
+#include "opencv2/opencv.hpp"
 
 std::string vertexShader("shaders\\DefaultVertexShader.vs");
 std::string fragmentShader("shaders\\DefaultFragmentShader.fs");
@@ -75,6 +76,7 @@ void genFlag(OglVertexType width_in, OglVertexType height_in, int partsNum_in, s
 
 void IddleFunc(void)
 {
+    glutPostRedisplay();
 }
 
 void renderScene(void)
