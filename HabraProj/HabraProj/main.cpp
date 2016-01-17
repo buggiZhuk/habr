@@ -2,10 +2,11 @@
 #include "Matrix4x4.h"
 #include "ProjectionMatrix.h"
 #include "ShaderProgram.h"
+#include "TextureLoader.h"
 #include "opencv2/opencv.hpp"
 
-std::string vertexShader("shaders\\DefaultVertexShader.vs");
-std::string fragmentShader("shaders\\DefaultFragmentShader.fs");
+std::string fragmentShader("shaders\\habrFragmentShader.fs");
+std::string vertexShader("shaders\\habrVertexShader.vs");
 
 int windowWidth = 1000;
 int windowHeight = 1000;
@@ -16,6 +17,7 @@ GLuint mIBO;        //indecis to draw
 int counter = 3;
 
 ShaderProgramm *ptShaderProg;
+TextureLoader  *pt2DTexture;
 
 void getCameraImage(cv::VideoCapture &cap, cv::Mat &frame)
 {
@@ -109,6 +111,10 @@ void renderScene(void)
     glUniform4f(params, 1, 14, -0.5, movement);
     movement += 2;
 
+    /*GLuint TextureSamplerId = ShaderProg.getAttributeId("mTexel");
+    pt2DTexture->Bind(GL_TEXTURE0);
+    glUniform1i(TextureSamplerId, 0);*/
+
     glDrawElements(GL_TRIANGLES, (linesInFlag * 2) * 3, GL_UNSIGNED_INT, ((void*)(0 * sizeof(GLuint))));
 
     glutSwapBuffers();
@@ -201,6 +207,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     ptShaderProg= &ShaderProg;
 
     createVertexData();
+
+    TextureLoader Texture(GL_TEXTURE_2D, 1);
+    pt2DTexture = &Texture;
 
     glutMainLoop();
 }

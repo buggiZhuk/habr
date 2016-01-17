@@ -125,6 +125,7 @@
     <ClCompile Include="ProjectionMatrix.cpp" />
     <ClCompile Include="ShaderProgram.cpp" />
     <ClCompile Include="stdafx.cpp" />
+    <ClCompile Include="TextureLoader.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="FileReader.h" />
@@ -132,6 +133,7 @@
     <ClInclude Include="ProjectionMatrix.h" />
     <ClInclude Include="ShaderProgram.h" />
     <ClInclude Include="stdafx.h" />
+    <ClInclude Include="TextureLoader.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
