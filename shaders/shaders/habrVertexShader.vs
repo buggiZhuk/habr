@@ -22,7 +22,7 @@ void main()
 	
 	fragTexCoord = vertexUV;
 	vec3 pos = Position;
-		
+
 	float posX = pos.x + startPosition;
 	float angleIndent = 360 / numberOfParts;
 	float lineNum =posX / (width / (numberOfParts + 1));
