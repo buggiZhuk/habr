@@ -17,10 +17,10 @@ TextureLoader::~TextureLoader()
     glDeleteTextures(mMaxTextures, mTextures);
     delete[] mTextures;
 }
-bool TextureLoader::RewriteTexture(GLubyte* texData_in, GLenum textureUnit_in)
+bool TextureLoader::RewriteTexture(GLubyte* texData_in, GLenum textureUnit_in, GLenum format)
 {
     glBindTexture(textureUnit_in, mTextures[mCurrentTexture - 1]);
-    glTexImage2D(mTextureTarget, 0, GL_RGBA, mTextureData[0].mRealWidth, mTextureData[0].mRealHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, (void*)texData_in);
+    glTexImage2D(mTextureTarget, 0, GL_RGBA, mTextureData[0].mRealWidth, mTextureData[0].mRealHeight, 0, format, GL_UNSIGNED_BYTE, (void*)texData_in);
     GLenum currentTexUnit = TexUnitFromInt(mCurrentTexture);
     return true;
 }

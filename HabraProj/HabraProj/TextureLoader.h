@@ -43,6 +43,6 @@ public:
 
     bool Load(GLubyte* texData_in, std::string name_in, int width_in, int height_in, GLenum format);
     //bool Load(boost::filesystem::path path_in, std::string name_in);
-    bool RewriteTexture(GLubyte* texData_in, GLenum textureUnit_in);
+    bool RewriteTexture(GLubyte* texData_in, GLenum textureUnit_in, GLenum format);
     bool Bind(GLenum textureUnit_in);
 };

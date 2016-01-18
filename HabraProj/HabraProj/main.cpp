@@ -3,21 +3,139 @@
 #include "ProjectionMatrix.h"
 #include "ShaderProgram.h"
 #include "TextureLoader.h"
+#include <queue>
 #include "opencv2/opencv.hpp"
 
 std::string fragmentShader("shaders\\habrFragmentShader.fs");
 std::string vertexShader("shaders\\habrVertexShader.vs");
+std::string videoPath("b.mp4");
+
+class DataProvider
+{
+protected:
+    cv::VideoCapture mCap;
+    bool getImageFromCap(cv::Mat& frame_in)
+    {
+        if (!mCap.grab())
+        {
+            std::cout << "could not grab";
+            return false;
+        }
+        mCap.retrieve(frame_in, CV_CAP_OPENNI_BGR_IMAGE);
+    }
+public:
+    virtual void getNextFrame(cv::Mat* frame) = 0;
+    virtual double getFPS() = 0;
+};
+
+class VideoFile : public DataProvider
+{
+    int mCurrentImage;
+    std::queue<cv::Mat> cache;
+    unsigned int mCacheSize;
+    double mFPS;
+    bool mFrameAvailable;
+
+    void startCacheing()
+    {
+        while (cache.size() < mCacheSize)
+        {
+            cache.push(cv::Mat());
+            getImageFromCap(cache.back());
+        }
+    }
+
+    bool getFrameAvailable()
+    {
+        return mFrameAvailable;
+    }
+    void setFrameAvailable(bool available_in)
+    {
+        mFrameAvailable = available_in;
+    }
+public:
+    
+    VideoFile(const std::string& path_in, unsigned int cacheSize_in) : mCurrentImage(0)
+                                                                     , cache()
+                                                                     , mCacheSize(cacheSize_in)
+                                                                     , mFPS(0)
+                                                                     , mFrameAvailable(false)
+    {
+        mCap.open(path_in);
+        mFPS = mCap.get(CV_CAP_PROP_FPS);
+        if (mCap.isOpened())
+        {
+            startCacheing();
+        }
+        else {
+
+        }
+    }
+    virtual void getNextFrame(cv::Mat* frame)
+    {
+        if (getFrameAvailable())
+        {
+            frame = &(cache.front());
+        }
+        else
+        {
+            frame = nullptr;
+        }        
+    }
+    void ReleaseLastFrame()
+    {
+        cache.pop();
+    }
+    virtual double getFPS()
+    {
+        return mFPS;
+    }
+
+    void setFPS(double FPS_in)
+    {
+        mFPS = FPS_in;
+    }
+
+    void setRealFPS()
+    {
+        mFPS = mCap.get(CV_CAP_PROP_FPS);
+    }
+};
+
+class CameraImageProvider : public DataProvider
+{
+public:
+    CameraImageProvider()
+    {
+        mCap.open(0);
+    }
+    virtual void getNextFrame(cv::Mat& frame)
+    {
+
+    }
+    virtual double getFPS()
+    {
+        return 0;
+    }
+};
+
+enum class SOURCE
+{
+    CAMERA,
+    VIDEO
+};
 
 int windowWidth = 1000;
 int windowHeight = 1000;
 int linesInFlag = 30;
 GLuint mVBO;        //vertices to draw
 GLuint mIBO;        //indecis to draw
+VideoFile vdFile(videoPath, 200);
 
-int counter = 3;
 
 ShaderProgramm *ptShaderProg;
 TextureLoader  *pt2DTexture;
+cv::VideoCapture cap;
 
 void getCameraImage(cv::VideoCapture &cap, cv::Mat &frame)
 {
@@ -30,22 +148,40 @@ void getCameraImage(cv::VideoCapture &cap, cv::Mat &frame)
     cap.retrieve(frame, CV_CAP_OPENNI_BGR_IMAGE);
     //if (!frame.empty())
     {
-        cv::cvtColor(frame, frame, CV_BGR2RGBA);
-        cv::Point2f pt(frame.cols / 2.0, frame.rows / 2.0);
+        //cv::cvtColor(frame, frame, CV_BGR2RGBA);
+        /*cv::Point2f pt(frame.cols / 2.0, frame.rows / 2.0);
         cv::Mat r = getRotationMatrix2D(pt, 180, 1.0);
         warpAffine(frame, frame, r, cv::Size(frame.cols, frame.rows));
-        cv::flip(frame, frame, 1);
+        cv::flip(frame, frame, 1);*/
         //frames.push_back(frame);
     }
 }
 
 void KeyboardInput(unsigned char key_in, int x_in, int y_in)
 {
+    
     switch (key_in)
     {
-    case 'W':
-    case 'w':
-        counter += 3;
+    case 'S':
+    case 's':
+        static bool useCamera = true;
+        useCamera = !useCamera;
+        cap.release();
+        if (useCamera)
+        {
+            cap.open(0);
+            
+        }
+        else
+        {
+            cap.open(videoPath);
+        }
+
+        if (!cap.isOpened())
+        {
+            //TODO: process errror
+        }
+
         glutPostRedisplay();
         break;
     }
@@ -62,10 +198,14 @@ void genFlag(OglVertexType width_in, OglVertexType height_in, int partsNum_in, s
 
     for (int i = 1; i < (partsNum_in + 1); i++)
     {
-        vertices_out.push_back(-xHalf + coordOffset * (i - 1)); vertices_out.push_back(-yHalf); vertices_out.push_back(0); vertices_out.push_back(texOffset*(i - 1)); vertices_out.push_back(0);
+        /*vertices_out.push_back(-xHalf + coordOffset * (i - 1)); vertices_out.push_back(-yHalf); vertices_out.push_back(0); vertices_out.push_back(texOffset*(i - 1)); vertices_out.push_back(0);
         vertices_out.push_back(-xHalf + coordOffset * (i - 1)); vertices_out.push_back(yHalf); vertices_out.push_back(0); vertices_out.push_back(texOffset*(i - 1)); vertices_out.push_back(1);
         vertices_out.push_back(-xHalf + coordOffset * i);       vertices_out.push_back(yHalf); vertices_out.push_back(0); vertices_out.push_back(texOffset*(i));     vertices_out.push_back(1);
-        vertices_out.push_back(-xHalf + coordOffset * i);       vertices_out.push_back(-yHalf); vertices_out.push_back(0); vertices_out.push_back(texOffset*(i));     vertices_out.push_back(0);
+        vertices_out.push_back(-xHalf + coordOffset * i);       vertices_out.push_back(-yHalf); vertices_out.push_back(0); vertices_out.push_back(texOffset*(i));     vertices_out.push_back(0);*/
+        vertices_out.push_back(-xHalf + coordOffset * (i - 1)); vertices_out.push_back(-yHalf); vertices_out.push_back(0); vertices_out.push_back(texOffset*(i - 1)); vertices_out.push_back(1);
+        vertices_out.push_back(-xHalf + coordOffset * (i - 1)); vertices_out.push_back(yHalf); vertices_out.push_back(0); vertices_out.push_back(texOffset*(i - 1)); vertices_out.push_back(0);
+        vertices_out.push_back(-xHalf + coordOffset * i);       vertices_out.push_back(yHalf); vertices_out.push_back(0); vertices_out.push_back(texOffset*(i));     vertices_out.push_back(0);
+        vertices_out.push_back(-xHalf + coordOffset * i);       vertices_out.push_back(-yHalf); vertices_out.push_back(0); vertices_out.push_back(texOffset*(i));     vertices_out.push_back(1);
         if (i != 0)
         {
             unsigned int vertNum = i * 4;
@@ -78,6 +218,9 @@ void genFlag(OglVertexType width_in, OglVertexType height_in, int partsNum_in, s
 
 void IddleFunc(void)
 {
+    cv::Mat frame;
+    getCameraImage(cap, frame);
+    pt2DTexture->RewriteTexture(frame.ptr(), GL_TEXTURE0, GL_BGR);
     glutPostRedisplay();
 }
 
@@ -111,9 +254,9 @@ void renderScene(void)
     glUniform4f(params, 1, 14, -0.5, movement);
     movement += 2;
 
-    /*GLuint TextureSamplerId = ShaderProg.getAttributeId("mTexel");
+    GLuint TextureSamplerId = ptShaderProg->getAttributeId("mTexel");
     pt2DTexture->Bind(GL_TEXTURE0);
-    glUniform1i(TextureSamplerId, 0);*/
+    glUniform1i(TextureSamplerId, 0);
 
     glDrawElements(GL_TRIANGLES, (linesInFlag * 2) * 3, GL_UNSIGNED_INT, ((void*)(0 * sizeof(GLuint))));
 
@@ -178,6 +321,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     int argc_ = 1;
     char* argv_ = const_cast<char*>("BuggiFly");
 
+    if (cap.open(videoPath))
+    {
+        std::cout << "camera is opened";
+    }
+    else {
+        return -1;
+    }
+
     //window creation
     glutInitWindowSize(windowWidth, windowHeight);
     glutInitWindowPosition(0, 0);
@@ -203,13 +354,23 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     ShaderProg.AddShader(fragmentShader, glslVersion, GL_FRAGMENT_SHADER);
     ShaderProg.LinkProgramm();
     ShaderProg.initAttribute("ProjectionViewMatrix");
-    ShaderProg.initAttribute("param");
+    ShaderProg.initAttribute("params");
     ptShaderProg= &ShaderProg;
 
     createVertexData();
 
     TextureLoader Texture(GL_TEXTURE_2D, 1);
     pt2DTexture = &Texture;
+    cv::Mat frame;
+    getCameraImage(cap, frame);
+    if (frame.empty())
+    {
+        return -1;
+    }
+    Texture.getTextureVars();
+    GLuint gSampler = ShaderProg.getAttributeId("mTexel");
+    Texture.Load(frame.ptr(), "image", frame.cols, frame.rows, GL_BGR);
+    glUniform1i(gSampler, 0);
 
     glutMainLoop();
 }

@@ -115,7 +115,7 @@
     <ClCompile>
       <PrecompiledHeader>Create</PrecompiledHeader>
       <PreprocessorDefinitions>NDEBUG</PreprocessorDefinitions>
-      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
