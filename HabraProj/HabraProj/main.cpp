@@ -5,6 +5,9 @@
 #include "TextureLoader.h"
 #include <queue>
 #include "opencv2/opencv.hpp"
+#include <mutex>
+#include <thread>
+
 
 std::string fragmentShader("shaders\\habrFragmentShader.fs");
 std::string vertexShader("shaders\\habrVertexShader.vs");
@@ -24,7 +27,7 @@ protected:
         mCap.retrieve(frame_in, CV_CAP_OPENNI_BGR_IMAGE);
     }
 public:
-    virtual void getNextFrame(cv::Mat* frame) = 0;
+    virtual cv::Mat* getNextFrame() = 0;
     virtual double getFPS() = 0;
 };
 
@@ -35,18 +38,26 @@ class VideoFile : public DataProvider
     unsigned int mCacheSize;
     double mFPS;
     bool mFrameAvailable;
+    std::mutex settingAviability;
+    std::mutex modifyingcache;
 
     void startCacheing()
     {
-        while (cache.size() < mCacheSize)
+        size_t size = cache.size()
+        do
         {
             cache.push(cv::Mat());
             getImageFromCap(cache.back());
-        }
+            if ( == 1)
+            {
+                setFrameAvailable(true);
+            }
+        } while (cache.size() < mCacheSize);
     }
 
     bool getFrameAvailable()
     {
+        std::lock_guard<std::mutex> guard(settingAviability);
         return mFrameAvailable;
     }
     void setFrameAvailable(bool available_in)
@@ -68,23 +79,30 @@ public:
             startCacheing();
         }
         else {
-
+            std::cout << "error";
         }
     }
-    virtual void getNextFrame(cv::Mat* frame)
+    virtual cv::Mat* getNextFrame()
     {
+        cv::Mat* result;
         if (getFrameAvailable())
         {
-            frame = &(cache.front());
+            result = &(cache.front());
         }
         else
         {
-            frame = nullptr;
-        }        
+            result = nullptr;
+        }
+        startCacheing();
+        return result;
     }
     void ReleaseLastFrame()
     {
         cache.pop();
+        if (cache.size() == 0)
+        {
+            setFrameAvailable(false);
+        }
     }
     virtual double getFPS()
     {
@@ -109,9 +127,9 @@ public:
     {
         mCap.open(0);
     }
-    virtual void getNextFrame(cv::Mat& frame)
+    virtual cv::Mat* getNextFrame()
     {
-
+        return nullptr;
     }
     virtual double getFPS()
     {
@@ -130,7 +148,7 @@ int windowHeight = 1000;
 int linesInFlag = 30;
 GLuint mVBO;        //vertices to draw
 GLuint mIBO;        //indecis to draw
-VideoFile vdFile(videoPath, 200);
+VideoFile vdFile(videoPath, 10);
 
 
 ShaderProgramm *ptShaderProg;
@@ -218,9 +236,13 @@ void genFlag(OglVertexType width_in, OglVertexType height_in, int partsNum_in, s
 
 void IddleFunc(void)
 {
-    cv::Mat frame;
-    getCameraImage(cap, frame);
-    pt2DTexture->RewriteTexture(frame.ptr(), GL_TEXTURE0, GL_BGR);
+    cv::Mat *frame = vdFile.getNextFrame();
+    
+    if (frame != nullptr)
+    {
+        pt2DTexture->RewriteTexture(frame->ptr(), GL_TEXTURE0, GL_BGR);
+        vdFile.ReleaseLastFrame();
+    }
     glutPostRedisplay();
 }
 
@@ -361,16 +383,21 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     TextureLoader Texture(GL_TEXTURE_2D, 1);
     pt2DTexture = &Texture;
-    cv::Mat frame;
-    getCameraImage(cap, frame);
-    if (frame.empty())
+    cv::Mat* firstFrame = nullptr;
+    do
+    {
+        firstFrame = vdFile.getNextFrame();
+    } while (firstFrame == nullptr);
+    //getCameraImage(cap, frame);
+    if (firstFrame->empty())
     {
         return -1;
     }
     Texture.getTextureVars();
     GLuint gSampler = ShaderProg.getAttributeId("mTexel");
-    Texture.Load(frame.ptr(), "image", frame.cols, frame.rows, GL_BGR);
+    Texture.Load((*firstFrame).ptr(), "image", (*firstFrame).cols, (*firstFrame).rows, GL_BGR);
     glUniform1i(gSampler, 0);
+    vdFile.ReleaseLastFrame();
 
     glutMainLoop();
 }
