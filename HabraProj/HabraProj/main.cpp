@@ -43,21 +43,22 @@ class VideoFile : public DataProvider
 
     void startCacheing()
     {
-        size_t size = cache.size()
+        size_t size = cache.size();
         do
         {
             cache.push(cv::Mat());
             getImageFromCap(cache.back());
-            if ( == 1)
+            if (size == 1)
             {
                 setFrameAvailable(true);
             }
-        } while (cache.size() < mCacheSize);
+            size++;
+        } while (size < mCacheSize);
     }
 
     bool getFrameAvailable()
     {
-        std::lock_guard<std::mutex> guard(settingAviability);
+        //std::lock_guard<std::mutex> guard(settingAviability);
         return mFrameAvailable;
     }
     void setFrameAvailable(bool available_in)
