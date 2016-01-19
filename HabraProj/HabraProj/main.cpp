@@ -11,7 +11,7 @@
 
 std::string fragmentShader("shaders\\habrFragmentShader.fs");
 std::string vertexShader("shaders\\habrVertexShader.vs");
-std::string videoPath("b.mp4");
+std::string videoPath("a.flv");
 
 class DataProvider
 {
@@ -33,51 +33,57 @@ public:
 
 class VideoFile : public DataProvider
 {
-    int mCurrentImage;
+    bool mCacheRunning;
+    //int mCurrentImage;
     std::queue<cv::Mat> cache;
     unsigned int mCacheSize;
     double mFPS;
     bool mFrameAvailable;
     std::mutex settingAviability;
-    std::mutex modifyingcache;
+    std::mutex modifyingCache;
 
     void startCacheing()
     {
         size_t size = cache.size();
         do
         {
+            std::lock_guard<std::mutex> guard(modifyingCache);
             cache.push(cv::Mat());
             getImageFromCap(cache.back());
-            if (size == 1)
+            if (size >= 1)
             {
                 setFrameAvailable(true);
             }
             size++;
         } while (size < mCacheSize);
+        mCacheRunning = false;
     }
 
     bool getFrameAvailable()
     {
-        //std::lock_guard<std::mutex> guard(settingAviability);
+        std::lock_guard<std::mutex> guard(settingAviability);
         return mFrameAvailable;
     }
     void setFrameAvailable(bool available_in)
     {
+        std::lock_guard<std::mutex> guard(settingAviability);
         mFrameAvailable = available_in;
     }
 public:
     
-    VideoFile(const std::string& path_in, unsigned int cacheSize_in) : mCurrentImage(0)
+    VideoFile(const std::string& path_in, unsigned int cacheSize_in) : mCacheRunning(true)
                                                                      , cache()
                                                                      , mCacheSize(cacheSize_in)
                                                                      , mFPS(0)
                                                                      , mFrameAvailable(false)
     {
+        
         mCap.open(path_in);
         mFPS = mCap.get(CV_CAP_PROP_FPS);
         if (mCap.isOpened())
         {
-            startCacheing();
+            std::thread t = std::thread(&VideoFile::startCacheing, this);
+            t.detach();
         }
         else {
             std::cout << "error";
@@ -94,15 +100,28 @@ public:
         {
             result = nullptr;
         }
-        startCacheing();
         return result;
     }
     void ReleaseLastFrame()
     {
-        cache.pop();
+        {
+            std::lock_guard<std::mutex> guard(modifyingCache);
+            cache.pop();
+        }
+        
         if (cache.size() == 0)
         {
             setFrameAvailable(false);
+        }
+        if ((mCacheSize / 2) > cache.size())
+        {
+            if (!mCacheRunning)
+            {
+                mCacheRunning = true;
+                std::thread t = std::thread(&VideoFile::startCacheing, this);
+                t.detach();
+            }
+
         }
     }
     virtual double getFPS()
@@ -149,7 +168,7 @@ int windowHeight = 1000;
 int linesInFlag = 30;
 GLuint mVBO;        //vertices to draw
 GLuint mIBO;        //indecis to draw
-VideoFile vdFile(videoPath, 10);
+VideoFile vdFile(videoPath, 100);
 
 
 ShaderProgramm *ptShaderProg;
@@ -177,8 +196,7 @@ void getCameraImage(cv::VideoCapture &cap, cv::Mat &frame)
 }
 
 void KeyboardInput(unsigned char key_in, int x_in, int y_in)
-{
-    
+{    
     switch (key_in)
     {
     case 'S':
@@ -234,17 +252,24 @@ void genFlag(OglVertexType width_in, OglVertexType height_in, int partsNum_in, s
         }
     }
 }
-
+std::chrono::time_point<std::chrono::system_clock> startedRendering = std::chrono::system_clock::now();
 void IddleFunc(void)
 {
-    cv::Mat *frame = vdFile.getNextFrame();
-    
-    if (frame != nullptr)
+    std::chrono::time_point<std::chrono::system_clock> today = std::chrono::system_clock::now();
+    std::chrono::duration<double> elapsed_seconds = today - startedRendering;
+    if (elapsed_seconds.count() >= (1.0 / vdFile.getFPS()))
     {
-        pt2DTexture->RewriteTexture(frame->ptr(), GL_TEXTURE0, GL_BGR);
-        vdFile.ReleaseLastFrame();
+        cv::Mat *frame = vdFile.getNextFrame();
+        if (frame != nullptr)
+        {
+            startedRendering = std::chrono::system_clock::now();
+            pt2DTexture->RewriteTexture(frame->ptr(), GL_TEXTURE0, GL_BGR);
+            glutPostRedisplay();
+            vdFile.ReleaseLastFrame();
+        }
     }
-    glutPostRedisplay();
+    
+    
 }
 
 void renderScene(void)
