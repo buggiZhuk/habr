@@ -11,7 +11,7 @@
 
 std::string fragmentShader("shaders\\habrFragmentShader.fs");
 std::string vertexShader("shaders\\habrVertexShader.vs");
-std::string videoPath("a.flv");
+std::string videoPath("b.mp4");
 
 class DataProvider
 {
@@ -76,6 +76,29 @@ public:
     {
 
         mCap.open(path_in);
+        mFPS = mCap.get(CV_CAP_PROP_FPS);
+        if (mCap.isOpened())
+        {
+            std::thread t = std::thread(&VideoFile::cache, this);
+            t.detach();
+        }
+        else {
+            std::cout << "error";
+        }
+    }
+
+    VideoFile() :                 mCacheRunning(true)
+                                , mCache(new cv::Mat[10])
+                                , mCacheSize(10)
+                                , mFPS(0)
+                                , mCurrentFrame(0)
+                                , mCachedFrames(0)
+                                , mCacheIndex(0)
+                                , modifyingCache()
+                                , mCachingRunning(true)
+    {
+
+        mCap.open(0);
         mFPS = mCap.get(CV_CAP_PROP_FPS);
         if (mCap.isOpened())
         {
@@ -163,7 +186,7 @@ enum class SOURCE
     VIDEO
 };
 
-int windowWidth = 1000;
+int windowWidth = 1900;
 int windowHeight = 1000;
 int linesInFlag = 30;
 GLuint mVBO;        //vertices to draw
@@ -379,7 +402,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 {
     int argc_ = 1;
     char* argv_ = const_cast<char*>("BuggiFly");
-    VideoFile vdFile(videoPath, 1000);
+    VideoFile vdFile(videoPath, 30);
     ptCap = &vdFile;
 
     
