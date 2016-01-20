@@ -11,7 +11,7 @@
 
 std::string fragmentShader("shaders\\habrFragmentShader.fs");
 std::string vertexShader("shaders\\habrVertexShader.vs");
-std::string videoPath("b.mp4");
+std::string videoPath("a.flv");
 
 class DataProvider
 {
@@ -139,11 +139,21 @@ public:
     }
     virtual cv::Mat* getNextFrame()
     {
-        return nullptr;
+        static cv::Mat cap;
+        this->getImageFromCap(cap);
+        return &cap;
     }
     virtual double getFPS()
     {
         return 0;
+    }
+    virtual void restoreFPS()
+    {
+
+    }
+    virtual void setFPS(double fps_in)
+    {
+
     }
 };
 
@@ -294,14 +304,14 @@ void renderScene(void)
     GLuint id = ptShaderProg->getAttributeId("ProjectionViewMatrix");
     glUniformMatrix4fv(id, 1, GL_TRUE, &WVOProjection.mMatrix[0][0]);
 
-    GLuint params = ptShaderProg->getAttributeId("param");
+    GLuint params = ptShaderProg->getAttributeId("params");
     static float movement = 2;
     if (movement >= 360)
     {
         movement = 0;
     }
     glUniform4f(params, 1, 14, -0.5, movement);
-    movement += 2;
+    movement += 6;
 
     GLuint TextureSamplerId = ptShaderProg->getAttributeId("mTexel");
     pt2DTexture->Bind(GL_TEXTURE0);
@@ -369,7 +379,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 {
     int argc_ = 1;
     char* argv_ = const_cast<char*>("BuggiFly");
-    VideoFile vdFile(videoPath, 100);
+    VideoFile vdFile(videoPath, 1000);
     ptCap = &vdFile;
 
     
