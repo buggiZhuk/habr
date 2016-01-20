@@ -11,7 +11,7 @@
 
 std::string fragmentShader("shaders\\habrFragmentShader.fs");
 std::string vertexShader("shaders\\habrVertexShader.vs");
-std::string videoPath("a.flv");
+std::string videoPath("b.mp4");
 
 class DataProvider
 {
@@ -25,118 +25,108 @@ protected:
             return false;
         }
         mCap.retrieve(frame_in, CV_CAP_OPENNI_BGR_IMAGE);
+        return true;
     }
 public:
     virtual cv::Mat* getNextFrame() = 0;
     virtual double getFPS() = 0;
+    virtual void restoreFPS() = 0;
+    virtual void setFPS(double fps_in) = 0;
 };
-
 class VideoFile : public DataProvider
 {
+private:
+
+    
     bool mCacheRunning;
-    //int mCurrentImage;
-    std::queue<cv::Mat> cache;
+    cv::Mat* mCache;
     unsigned int mCacheSize;
     double mFPS;
-    bool mFrameAvailable;
-    std::mutex settingAviability;
+
+    unsigned int mCurrentFrame;
+    unsigned int mCachedFrames;
+    unsigned int mCacheIndex;
+    bool mCachingRunning;
+
     std::mutex modifyingCache;
 
-    void startCacheing()
+    void cache()
     {
-        size_t size = cache.size();
-        do
+        while (mCachedFrames < (mCacheSize -1))
         {
+            getImageFromCap(mCache[mCacheIndex]);
             std::lock_guard<std::mutex> guard(modifyingCache);
-            cache.push(cv::Mat());
-            getImageFromCap(cache.back());
-            if (size >= 1)
-            {
-                setFrameAvailable(true);
-            }
-            size++;
-        } while (size < mCacheSize);
-        mCacheRunning = false;
+            mCacheIndex++;
+            mCacheIndex = mCacheIndex % mCacheSize;
+            mCachedFrames++;
+        }
+        mCachingRunning = false;
     }
 
-    bool getFrameAvailable()
-    {
-        std::lock_guard<std::mutex> guard(settingAviability);
-        return mFrameAvailable;
-    }
-    void setFrameAvailable(bool available_in)
-    {
-        std::lock_guard<std::mutex> guard(settingAviability);
-        mFrameAvailable = available_in;
-    }
 public:
-    
-    VideoFile(const std::string& path_in, unsigned int cacheSize_in) : mCacheRunning(true)
-                                                                     , cache()
-                                                                     , mCacheSize(cacheSize_in)
-                                                                     , mFPS(0)
-                                                                     , mFrameAvailable(false)
+    VideoFile(const std::string& path_in, unsigned int cacheSize_in)    : mCacheRunning(true)
+                                                                        , mCache(new cv::Mat[cacheSize_in])
+                                                                        , mCacheSize(cacheSize_in)
+                                                                        , mFPS(0)
+                                                                        , mCurrentFrame(0)
+                                                                        , mCachedFrames(0)
+                                                                        , mCacheIndex(0)
+                                                                        , modifyingCache()
+                                                                        , mCachingRunning(true)
     {
-        
+
         mCap.open(path_in);
         mFPS = mCap.get(CV_CAP_PROP_FPS);
         if (mCap.isOpened())
         {
-            std::thread t = std::thread(&VideoFile::startCacheing, this);
+            std::thread t = std::thread(&VideoFile::cache, this);
             t.detach();
         }
         else {
             std::cout << "error";
         }
     }
+
+    virtual void restoreFPS()
+    {
+        mFPS = mCap.get(CV_CAP_PROP_FPS);
+    }
+    virtual void setFPS(double fps_in)
+    {
+        mFPS = fps_in;
+    }
+
+    ~VideoFile()
+    {
+        delete[] mCache;
+    }
+
     virtual cv::Mat* getNextFrame()
     {
-        cv::Mat* result;
-        if (getFrameAvailable())
+        if (mCachedFrames == 0)
         {
-            result = &(cache.front());
+            return nullptr;
         }
-        else
+
+        cv::Mat* result = mCache + mCurrentFrame;
+        std::lock_guard<std::mutex> guard(modifyingCache);
+        mCachedFrames--;
+        mCurrentFrame++;
+        mCurrentFrame = mCurrentFrame % mCacheSize;
+        if (mCachedFrames < (mCacheSize / 2) && !mCachingRunning)
         {
-            result = nullptr;
+            std::thread t = std::thread(&VideoFile::cache, this);
+            t.detach();
+        }
+        else {
+            std::cout << "error";
         }
         return result;
-    }
-    void ReleaseLastFrame()
-    {
-        {
-            std::lock_guard<std::mutex> guard(modifyingCache);
-            cache.pop();
-        }
-        
-        if (cache.size() == 0)
-        {
-            setFrameAvailable(false);
-        }
-        if ((mCacheSize / 2) > cache.size())
-        {
-            if (!mCacheRunning)
-            {
-                mCacheRunning = true;
-                std::thread t = std::thread(&VideoFile::startCacheing, this);
-                t.detach();
-            }
 
-        }
     }
     virtual double getFPS()
     {
         return mFPS;
-    }
-
-    void setFPS(double FPS_in)
-    {
-        mFPS = FPS_in;
-    }
-
-    void setRealFPS()
-    {
-        mFPS = mCap.get(CV_CAP_PROP_FPS);
     }
 };
 
@@ -197,8 +187,22 @@ void getCameraImage(cv::VideoCapture &cap, cv::Mat &frame)
 
 void KeyboardInput(unsigned char key_in, int x_in, int y_in)
 {    
+    static bool fpsSwitch = true;
     switch (key_in)
     {
+    case 'f':
+    case 'F':
+        
+        if (fpsSwitch)
+        {
+            vdFile.setFPS(0);
+        }
+        else
+        {
+             vdFile.restoreFPS();
+        }
+        fpsSwitch = !fpsSwitch;
+        break;
     case 'S':
     case 's':
         static bool useCamera = true;
@@ -255,21 +259,32 @@ void genFlag(OglVertexType width_in, OglVertexType height_in, int partsNum_in, s
 std::chrono::time_point<std::chrono::system_clock> startedRendering = std::chrono::system_clock::now();
 void IddleFunc(void)
 {
-    std::chrono::time_point<std::chrono::system_clock> today = std::chrono::system_clock::now();
-    std::chrono::duration<double> elapsed_seconds = today - startedRendering;
-    if (elapsed_seconds.count() >= (1.0 / vdFile.getFPS()))
+    bool getNextFrame = true;
+    if (vdFile.getFPS() != 0)
+    {
+        std::chrono::time_point<std::chrono::system_clock> today = std::chrono::system_clock::now();
+        std::chrono::duration<double> elapsed_seconds = today - startedRendering;
+        if (elapsed_seconds.count() >= (1.0 / (vdFile.getFPS()+2)))
+        {
+            startedRendering = std::chrono::system_clock::now();
+            getNextFrame = true;
+        }
+        else
+        {
+            getNextFrame = false;
+        }
+    }
+
+    if (getNextFrame)
     {
         cv::Mat *frame = vdFile.getNextFrame();
         if (frame != nullptr)
         {
-            startedRendering = std::chrono::system_clock::now();
             pt2DTexture->RewriteTexture(frame->ptr(), GL_TEXTURE0, GL_BGR);
             glutPostRedisplay();
-            vdFile.ReleaseLastFrame();
+            //vdFile.ReleaseLastFrame();
         }
-    }
-    
-    
+    }    
 }
 
 void renderScene(void)
@@ -423,7 +438,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     GLuint gSampler = ShaderProg.getAttributeId("mTexel");
     Texture.Load((*firstFrame).ptr(), "image", (*firstFrame).cols, (*firstFrame).rows, GL_BGR);
     glUniform1i(gSampler, 0);
-    vdFile.ReleaseLastFrame();
+    //vdFile.ReleaseLastFrame();
 
     glutMainLoop();
 }
