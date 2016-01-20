@@ -52,7 +52,7 @@ private:
 
     void cache()
     {
-        while (mCachedFrames < (mCacheSize -1))
+        while (mCachedFrames < (mCacheSize -2))
         {
             getImageFromCap(mCache[mCacheIndex]);
             std::lock_guard<std::mutex> guard(modifyingCache);
@@ -158,12 +158,12 @@ int windowHeight = 1000;
 int linesInFlag = 30;
 GLuint mVBO;        //vertices to draw
 GLuint mIBO;        //indecis to draw
-VideoFile vdFile(videoPath, 100);
+//VideoFile vdFile(videoPath, 100);
+DataProvider* ptCap = nullptr;
 
 
 ShaderProgramm *ptShaderProg;
 TextureLoader  *pt2DTexture;
-cv::VideoCapture cap;
 
 void getCameraImage(cv::VideoCapture &cap, cv::Mat &frame)
 {
@@ -195,11 +195,11 @@ void KeyboardInput(unsigned char key_in, int x_in, int y_in)
         
         if (fpsSwitch)
         {
-            vdFile.setFPS(0);
+            ptCap->setFPS(0);
         }
         else
         {
-             vdFile.restoreFPS();
+            ptCap->restoreFPS();
         }
         fpsSwitch = !fpsSwitch;
         break;
@@ -207,25 +207,11 @@ void KeyboardInput(unsigned char key_in, int x_in, int y_in)
     case 's':
         static bool useCamera = true;
         useCamera = !useCamera;
-        cap.release();
-        if (useCamera)
-        {
-            cap.open(0);
-            
-        }
-        else
-        {
-            cap.open(videoPath);
-        }
-
-        if (!cap.isOpened())
-        {
-            //TODO: process errror
-        }
-
-        glutPostRedisplay();
+        
+        
         break;
     }
+    glutPostRedisplay();
 }
 
 void genFlag(OglVertexType width_in, OglVertexType height_in, int partsNum_in, std::vector<OglVertexType> &vertices_out, std::vector<GLuint> &indecis_out)
@@ -260,11 +246,11 @@ std::chrono::time_point<std::chrono::system_clock> startedRendering = std::chron
 void IddleFunc(void)
 {
     bool getNextFrame = true;
-    if (vdFile.getFPS() != 0)
+    if (ptCap->getFPS() != 0)
     {
         std::chrono::time_point<std::chrono::system_clock> today = std::chrono::system_clock::now();
         std::chrono::duration<double> elapsed_seconds = today - startedRendering;
-        if (elapsed_seconds.count() >= (1.0 / (vdFile.getFPS()+2)))
+        if (elapsed_seconds.count() >= (1.0 / (ptCap->getFPS() + 2)))
         {
             startedRendering = std::chrono::system_clock::now();
             getNextFrame = true;
@@ -277,7 +263,7 @@ void IddleFunc(void)
 
     if (getNextFrame)
     {
-        cv::Mat *frame = vdFile.getNextFrame();
+        cv::Mat *frame = ptCap->getNextFrame();
         if (frame != nullptr)
         {
             pt2DTexture->RewriteTexture(frame->ptr(), GL_TEXTURE0, GL_BGR);
@@ -383,14 +369,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 {
     int argc_ = 1;
     char* argv_ = const_cast<char*>("BuggiFly");
+    VideoFile vdFile(videoPath, 100);
+    ptCap = &vdFile;
 
-    if (cap.open(videoPath))
-    {
-        std::cout << "camera is opened";
-    }
-    else {
-        return -1;
-    }
+    
 
     //window creation
     glutInitWindowSize(windowWidth, windowHeight);
