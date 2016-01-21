@@ -8,14 +8,6 @@
 #include <mutex>
 #include <thread>
 
-
-std::string fragmentShader("shaders\\habrFragmentShader.fs");
-std::string vertexShader("shaders\\habrVertexShader.vs");
-std::string videoPath("b.mp4");
-bool paused = false;
-float movement = 2;
-double flagSpeed = 0.01;
-
 class DataProvider
 {
 protected:
@@ -28,6 +20,10 @@ protected:
             return false;
         }
         mCap.retrieve(frame_in, CV_CAP_OPENNI_BGR_IMAGE);
+        if (frame_in.empty())
+        {
+            return false;
+        }
         return true;
     }
 public:
@@ -57,7 +53,12 @@ private:
     {
         while (mCachedFrames < (mCacheSize -2))
         {
-            getImageFromCap(mCache[mCacheIndex]);
+            if (!getImageFromCap(mCache[mCacheIndex]))
+            {
+                mCachingRunning = false;
+                return;
+            }
+
             std::lock_guard<std::mutex> guard(modifyingCache);
             mCacheIndex++;
             mCacheIndex = mCacheIndex % mCacheSize;
@@ -184,11 +185,13 @@ public:
     }
 };
 
-enum class SOURCE
-{
-    CAMERA,
-    VIDEO
-};
+std::string fragmentShader("shaders\\habrFragmentShader.fs");
+std::string vertexShader("shaders\\habrVertexShader.vs");
+std::string videoPath("a.flv");
+bool paused = false;
+float movement = 2;
+double flagSpeed = 0.01;
+Matrix4x4 WVOProjection;
 
 int windowWidth = 1900;
 int windowHeight = 1000;
@@ -283,8 +286,8 @@ void genFlag(OglVertexType width_in, OglVertexType height_in, int partsNum_in, s
         }
     }
 }
-std::chrono::time_point<std::chrono::system_clock> frameStartedRendering = std::chrono::system_clock::now();
-std::chrono::time_point<std::chrono::system_clock> flagStartedRendering = std::chrono::system_clock::now();
+std::chrono::time_point<std::chrono::system_clock> frame_StartedRendering = std::chrono::system_clock::now();
+std::chrono::time_point<std::chrono::system_clock> flag_StartedRendering = std::chrono::system_clock::now();
 void IddleFunc(void)
 {
     if (paused)
@@ -295,50 +298,51 @@ void IddleFunc(void)
 
     std::chrono::time_point<std::chrono::system_clock> today = std::chrono::system_clock::now();
     
-    std::chrono::duration<double> flag_elapsed_seconds = today - flagStartedRendering;
+    std::chrono::duration<double> flag_elapsed_seconds = today - flag_StartedRendering;
     if (flag_elapsed_seconds.count() >= flagSpeed)
     {
-        flagStartedRendering = std::chrono::system_clock::now();
+        flag_StartedRendering = std::chrono::system_clock::now();
         if (movement >= 360)
         {
             movement = 0;
         }
         movement += 1;
     }
-    
-    bool getNextFrame = true;
+    bool getNextFrameFlag = true;
     if (ptCap->getFPS() != 0)
     {
-        std::chrono::duration<double> last_frame_elapsed_seconds = today - frameStartedRendering;
-        if (last_frame_elapsed_seconds.count() >= (1.0 / (ptCap->getFPS() + 2)))
+        
+        std::chrono::duration<double> last_frame_elapsed_seconds = today - frame_StartedRendering;
+        if (last_frame_elapsed_seconds.count() < 0.04)
         {
-            frameStartedRendering = std::chrono::system_clock::now();
-            getNextFrame = true;
+            std::cout << "test";
+        }
+        if (last_frame_elapsed_seconds.count() >= (1.0 / (ptCap->getFPS())))
+        {
+            frame_StartedRendering = std::chrono::system_clock::now();
+            getNextFrameFlag = true;
         }
         else
         {
-            getNextFrame = false;
+            getNextFrameFlag = false;
         }
     }
 
-    if (getNextFrame)
+    if (getNextFrameFlag)
     {
         cv::Mat *frame = ptCap->getNextFrame();
         if (frame != nullptr)
         {
             pt2DTexture->RewriteTexture(frame->ptr(), GL_TEXTURE0, GL_BGR);
-
-            glutPostRedisplay();
-            //vdFile.ReleaseLastFrame();
         }
-    }    
+    }
+
+    glutPostRedisplay();
 }
 
 void renderScene(void)
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    ProjectionMatrix projMatr(1, 100, windowWidth, windowHeight, 30.0f);
 
     glUseProgram(ptShaderProg->getId());
     glEnableVertexAttribArray(0);
@@ -349,15 +353,14 @@ void renderScene(void)
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(OglVertexType)* 5, (const GLvoid*)(sizeof(OglVertexType)* 3));
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mIBO);
 
-    Matrix4x4 objectMatr;
-    objectMatr[2][3] = 5;
-    Matrix4x4 WVOProjection = projMatr * objectMatr;
     GLuint id = ptShaderProg->getAttributeId("ProjectionViewMatrix");
     glUniformMatrix4fv(id, 1, GL_TRUE, &WVOProjection.mMatrix[0][0]);
 
-    GLuint params = ptShaderProg->getAttributeId("params");
-    
-    glUniform4f(params, 1, 14, -0.5, movement);
+    //if (wave)
+    {
+        GLuint params = ptShaderProg->getAttributeId("params");
+        glUniform4f(params, 1, 14, -0.5, movement);
+    }
     
 
     GLuint TextureSamplerId = ptShaderProg->getAttributeId("mTexel");
@@ -426,7 +429,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 {
     int argc_ = 1;
     char* argv_ = const_cast<char*>("BuggiFly");
-    VideoFile vdFile(videoPath, 1);
+    Matrix4x4 objectMatr;
+    objectMatr[2][3] = 5;
+
+    ProjectionMatrix projMatr(1, 100, windowWidth, windowHeight, 30.0f);
+    WVOProjection = projMatr * objectMatr;
+    VideoFile vdFile(videoPath, 20);
     ptCap = &vdFile;
 
     //window creation
