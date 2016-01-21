@@ -167,6 +167,10 @@ public:
 
 std::string fragmentShader("shaders\\habrFragmentShader.fs");
 std::string vertexShader("shaders\\habrVertexShader.vs");
+
+std::string waveFragmentShader("shaders\\habrWaveFragmentShader.fs");
+std::string waveVertexShader("shaders\\habrWaveVertexShader.vs");
+
 std::string videoPath("b.mp4");
 bool paused = false;
 float movement = 2;
@@ -183,7 +187,10 @@ DataProvider* ptCap = nullptr;
 
 
 ShaderProgramm *ptShaderProg;
+ShaderProgramm *ptSimpleShaderProg;
+ShaderProgramm *ptWaveShaderProg;
 TextureLoader  *pt2DTexture;
+bool wave = true;
 
 /*void getCameraImage(cv::VideoCapture &cap, cv::Mat &frame)
 {
@@ -234,6 +241,20 @@ void KeyboardInput(unsigned char key_in, int x_in, int y_in)
     case 'P':
         paused = !paused;
         break;
+    case 'w':
+    case 'W':
+        wave = !wave;
+        if (wave)
+        {
+            ptShaderProg = ptWaveShaderProg;
+        }
+        else
+        {
+            ptShaderProg = ptSimpleShaderProg;
+        }
+        
+        break;
+
     }
     glutPostRedisplay();
 }
@@ -277,21 +298,24 @@ void IddleFunc(void)
     }
 
     std::chrono::time_point<std::chrono::system_clock> today = std::chrono::system_clock::now();
-    
-    std::chrono::duration<double> flag_elapsed_seconds = today - flag_StartedRendering;
-    if (flag_elapsed_seconds.count() >= flagSpeed)
+
+    if (wave)
     {
-        flag_StartedRendering = std::chrono::system_clock::now();
-        if (movement >= 360)
+
+        std::chrono::duration<double> flag_elapsed_seconds = today - flag_StartedRendering;
+        if (flag_elapsed_seconds.count() >= flagSpeed)
         {
-            movement = 0;
+            flag_StartedRendering = std::chrono::system_clock::now();
+            if (movement >= 360)
+            {
+                movement = 0;
+            }
+            movement += 1;
         }
-        movement += 1;
     }
     bool getNextFrameFlag = true;
     if (ptCap->getFPS() != 0)
     {
-        
         std::chrono::duration<double> last_frame_elapsed_seconds = today - frame_StartedRendering;
         if (last_frame_elapsed_seconds.count() < 0.04)
         {
@@ -335,7 +359,7 @@ void renderScene(void)
 
     GLuint id = ptShaderProg->getAttributeId("ProjectionViewMatrix");
     glUniformMatrix4fv(id, 1, GL_TRUE, &WVOProjection.mMatrix[0][0]);
-    bool wave = true;
+
     if (wave)
     {
         GLuint params = ptShaderProg->getAttributeId("params");
@@ -415,7 +439,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     ProjectionMatrix projMatr(1, 100, windowWidth, windowHeight, 30.0f);
     WVOProjection = projMatr * objectMatr;
-    VideoFile vdFile (videoPath, 20);
+    VideoFile vdFile (videoPath, 40);
     ptCap = &vdFile;
 
     //window creation
@@ -437,15 +461,27 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     glEnable(GL_CULL_FACE);
 
     ShaderProgramm ShaderProg;
+    ShaderProgramm WavedShaderProg;
     const GLubyte* shadingVersion = glGetString(GL_SHADING_LANGUAGE_VERSION);
     std::string glslVersion = getGLSLversionFromVersionString(shadingVersion);
+
     ShaderProg.AddShader(vertexShader, glslVersion, GL_VERTEX_SHADER);
     ShaderProg.AddShader(fragmentShader, glslVersion, GL_FRAGMENT_SHADER);
     ShaderProg.LinkProgramm();
     ShaderProg.initAttribute("ProjectionViewMatrix");
-    ShaderProg.initAttribute("params");
-    //ShaderProg.initAttribute("mTexel");
-    ptShaderProg= &ShaderProg;
+    ShaderProg.initAttribute("mTexel");
+
+    WavedShaderProg.AddShader(waveVertexShader, glslVersion, GL_VERTEX_SHADER);
+    WavedShaderProg.AddShader(waveFragmentShader, glslVersion, GL_FRAGMENT_SHADER);
+    WavedShaderProg.LinkProgramm();
+    WavedShaderProg.initAttribute("ProjectionViewMatrix");
+    WavedShaderProg.initAttribute("params");
+    WavedShaderProg.initAttribute("mTexel");
+
+    ptShaderProg = &WavedShaderProg;
+
+    ptSimpleShaderProg = &ShaderProg;
+    ptWaveShaderProg = &WavedShaderProg;
 
     createVertexData();
 
@@ -466,6 +502,5 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     Texture.Load((*firstFrame).ptr(), "image", (*firstFrame).cols, (*firstFrame).rows, GL_BGR);
     glUniform1i(gSampler, 0);
     //glutFullScreenToggle();
-    glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
     glutMainLoop();
 }
