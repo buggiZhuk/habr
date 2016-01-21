@@ -11,7 +11,33 @@
 class DataProvider
 {
 protected:
+    
+    
+public:
+    virtual cv::Mat* getNextFrame() = 0;
+    virtual double getFPS() = 0;
+    virtual void restoreFPS() = 0;
+    virtual void setFPS(double fps_in) = 0;
+};
+class VideoFile : public DataProvider
+{
+private:
+
     cv::VideoCapture mCap;
+    bool mCacheRunning;
+    cv::Mat* mCache;
+    unsigned int mCacheSize;
+    double mFPS;
+
+    unsigned int mCurrentFrame;
+    unsigned int mCachedFrames;
+    unsigned int mCacheIndex;
+    bool mCachingRunning;
+
+    std::mutex modifyingCache;
+
+    std::thread t;
+
     bool getImageFromCap(cv::Mat& frame_in)
     {
         if (!mCap.grab())
@@ -26,28 +52,6 @@ protected:
         }
         return true;
     }
-public:
-    virtual cv::Mat* getNextFrame() = 0;
-    virtual double getFPS() = 0;
-    virtual void restoreFPS() = 0;
-    virtual void setFPS(double fps_in) = 0;
-};
-class VideoFile : public DataProvider
-{
-private:
-
-    
-    bool mCacheRunning;
-    cv::Mat* mCache;
-    unsigned int mCacheSize;
-    double mFPS;
-
-    unsigned int mCurrentFrame;
-    unsigned int mCachedFrames;
-    unsigned int mCacheIndex;
-    bool mCachingRunning;
-
-    std::mutex modifyingCache;
 
     void cache()
     {
@@ -58,11 +62,12 @@ private:
                 mCachingRunning = false;
                 return;
             }
-
-            std::lock_guard<std::mutex> guard(modifyingCache);
-            mCacheIndex++;
-            mCacheIndex = mCacheIndex % mCacheSize;
-            mCachedFrames++;
+            {
+                std::lock_guard<std::mutex> guard(modifyingCache);
+                mCacheIndex++;
+                mCacheIndex = mCacheIndex % mCacheSize;
+                mCachedFrames++;
+            }
         }
         mCachingRunning = false;
     }
@@ -83,7 +88,7 @@ public:
         mFPS = mCap.get(CV_CAP_PROP_FPS);
         if (mCap.isOpened())
         {
-            std::thread t = std::thread(&VideoFile::cache, this);
+            t = std::thread(&VideoFile::cache, this);
             t.detach();
         }
         else {
@@ -92,8 +97,8 @@ public:
     }
 
     VideoFile() :                 mCacheRunning(true)
-                                , mCache(new cv::Mat[10])
-                                , mCacheSize(10)
+                                , mCache(new cv::Mat[3])
+                                , mCacheSize(3)
                                 , mFPS(0)
                                 , mCurrentFrame(0)
                                 , mCachedFrames(0)
@@ -106,7 +111,7 @@ public:
         mFPS = mCap.get(CV_CAP_PROP_FPS);
         if (mCap.isOpened())
         {
-            std::thread t = std::thread(&VideoFile::cache, this);
+            t = std::thread(&VideoFile::cache, this);
             t.detach();
         }
         else {
@@ -158,36 +163,11 @@ public:
     }
 };
 
-class CameraImageProvider : public DataProvider
-{
-public:
-    CameraImageProvider()
-    {
-        mCap.open(0);
-    }
-    virtual cv::Mat* getNextFrame()
-    {
-        static cv::Mat cap;
-        this->getImageFromCap(cap);
-        return &cap;
-    }
-    virtual double getFPS()
-    {
-        return 0;
-    }
-    virtual void restoreFPS()
-    {
 
-    }
-    virtual void setFPS(double fps_in)
-    {
-
-    }
-};
 
 std::string fragmentShader("shaders\\habrFragmentShader.fs");
 std::string vertexShader("shaders\\habrVertexShader.vs");
-std::string videoPath("a.flv");
+std::string videoPath("b.mp4");
 bool paused = false;
 float movement = 2;
 double flagSpeed = 0.01;
@@ -355,8 +335,8 @@ void renderScene(void)
 
     GLuint id = ptShaderProg->getAttributeId("ProjectionViewMatrix");
     glUniformMatrix4fv(id, 1, GL_TRUE, &WVOProjection.mMatrix[0][0]);
-
-    //if (wave)
+    bool wave = true;
+    if (wave)
     {
         GLuint params = ptShaderProg->getAttributeId("params");
         glUniform4f(params, 1, 14, -0.5, movement);
@@ -378,7 +358,8 @@ void createVertexData()
     glGenBuffers(1, &mIBO);
     std::vector<OglVertexType> vertices;
     std::vector<GLuint> indecis;
-    genFlag(1, 1, linesInFlag, vertices, indecis);
+
+    genFlag(3840.0 / 2160.0, 1, linesInFlag, vertices, indecis);
 
     if (!vertices.empty())
     {
@@ -434,7 +415,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     ProjectionMatrix projMatr(1, 100, windowWidth, windowHeight, 30.0f);
     WVOProjection = projMatr * objectMatr;
-    VideoFile vdFile(videoPath, 20);
+    VideoFile vdFile (videoPath, 20);
     ptCap = &vdFile;
 
     //window creation
@@ -463,6 +444,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     ShaderProg.LinkProgramm();
     ShaderProg.initAttribute("ProjectionViewMatrix");
     ShaderProg.initAttribute("params");
+    //ShaderProg.initAttribute("mTexel");
     ptShaderProg= &ShaderProg;
 
     createVertexData();
@@ -483,7 +465,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     GLuint gSampler = ShaderProg.getAttributeId("mTexel");
     Texture.Load((*firstFrame).ptr(), "image", (*firstFrame).cols, (*firstFrame).rows, GL_BGR);
     glUniform1i(gSampler, 0);
-    //vdFile.ReleaseLastFrame();
-
+    //glutFullScreenToggle();
+    glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
     glutMainLoop();
 }
