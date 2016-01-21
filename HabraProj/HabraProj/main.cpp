@@ -12,6 +12,9 @@
 std::string fragmentShader("shaders\\habrFragmentShader.fs");
 std::string vertexShader("shaders\\habrVertexShader.vs");
 std::string videoPath("b.mp4");
+bool paused = false;
+float movement = 2;
+double flagSpeed = 0.01;
 
 class DataProvider
 {
@@ -138,6 +141,7 @@ public:
         mCurrentFrame = mCurrentFrame % mCacheSize;
         if (mCachedFrames < (mCacheSize / 2) && !mCachingRunning)
         {
+            mCachingRunning = true;
             std::thread t = std::thread(&VideoFile::cache, this);
             t.detach();
         }
@@ -191,32 +195,31 @@ int windowHeight = 1000;
 int linesInFlag = 30;
 GLuint mVBO;        //vertices to draw
 GLuint mIBO;        //indecis to draw
-//VideoFile vdFile(videoPath, 100);
+
 DataProvider* ptCap = nullptr;
 
 
 ShaderProgramm *ptShaderProg;
 TextureLoader  *pt2DTexture;
 
-void getCameraImage(cv::VideoCapture &cap, cv::Mat &frame)
+/*void getCameraImage(cv::VideoCapture &cap, cv::Mat &frame)
 {
     if (!cap.grab())
     {
         std::cout << "could not grab";
         return;
     }
-    //cv::Mat frame;
+
     cap.retrieve(frame, CV_CAP_OPENNI_BGR_IMAGE);
-    //if (!frame.empty())
+    if (!frame.empty())
     {
         //cv::cvtColor(frame, frame, CV_BGR2RGBA);
-        /*cv::Point2f pt(frame.cols / 2.0, frame.rows / 2.0);
-        cv::Mat r = getRotationMatrix2D(pt, 180, 1.0);
-        warpAffine(frame, frame, r, cv::Size(frame.cols, frame.rows));
-        cv::flip(frame, frame, 1);*/
-        //frames.push_back(frame);
+        //cv::Point2f pt(frame.cols / 2.0, frame.rows / 2.0);
+        //cv::Mat r = getRotationMatrix2D(pt, 180, 1.0);
+        //warpAffine(frame, frame, r, cv::Size(frame.cols, frame.rows));
+        //cv::flip(frame, frame, 1);
     }
-}
+}*/
 
 void KeyboardInput(unsigned char key_in, int x_in, int y_in)
 {    
@@ -237,11 +240,16 @@ void KeyboardInput(unsigned char key_in, int x_in, int y_in)
         fpsSwitch = !fpsSwitch;
         break;
     case 'S':
+        flagSpeed += 0.002;
+        break;
     case 's':
-        static bool useCamera = true;
-        useCamera = !useCamera;
-        
-        
+        //static bool useCamera = true;
+        //useCamera = !useCamera;
+        flagSpeed -= 0.002;
+        break;
+    case 'p':
+    case 'P':
+        paused = !paused;
         break;
     }
     glutPostRedisplay();
@@ -275,17 +283,36 @@ void genFlag(OglVertexType width_in, OglVertexType height_in, int partsNum_in, s
         }
     }
 }
-std::chrono::time_point<std::chrono::system_clock> startedRendering = std::chrono::system_clock::now();
+std::chrono::time_point<std::chrono::system_clock> frameStartedRendering = std::chrono::system_clock::now();
+std::chrono::time_point<std::chrono::system_clock> flagStartedRendering = std::chrono::system_clock::now();
 void IddleFunc(void)
 {
+    if (paused)
+    {
+        glutPostRedisplay();
+        return;
+    }
+
+    std::chrono::time_point<std::chrono::system_clock> today = std::chrono::system_clock::now();
+    
+    std::chrono::duration<double> flag_elapsed_seconds = today - flagStartedRendering;
+    if (flag_elapsed_seconds.count() >= flagSpeed)
+    {
+        flagStartedRendering = std::chrono::system_clock::now();
+        if (movement >= 360)
+        {
+            movement = 0;
+        }
+        movement += 1;
+    }
+    
     bool getNextFrame = true;
     if (ptCap->getFPS() != 0)
     {
-        std::chrono::time_point<std::chrono::system_clock> today = std::chrono::system_clock::now();
-        std::chrono::duration<double> elapsed_seconds = today - startedRendering;
-        if (elapsed_seconds.count() >= (1.0 / (ptCap->getFPS() + 2)))
+        std::chrono::duration<double> last_frame_elapsed_seconds = today - frameStartedRendering;
+        if (last_frame_elapsed_seconds.count() >= (1.0 / (ptCap->getFPS() + 2)))
         {
-            startedRendering = std::chrono::system_clock::now();
+            frameStartedRendering = std::chrono::system_clock::now();
             getNextFrame = true;
         }
         else
@@ -300,6 +327,7 @@ void IddleFunc(void)
         if (frame != nullptr)
         {
             pt2DTexture->RewriteTexture(frame->ptr(), GL_TEXTURE0, GL_BGR);
+
             glutPostRedisplay();
             //vdFile.ReleaseLastFrame();
         }
@@ -328,13 +356,9 @@ void renderScene(void)
     glUniformMatrix4fv(id, 1, GL_TRUE, &WVOProjection.mMatrix[0][0]);
 
     GLuint params = ptShaderProg->getAttributeId("params");
-    static float movement = 2;
-    if (movement >= 360)
-    {
-        movement = 0;
-    }
+    
     glUniform4f(params, 1, 14, -0.5, movement);
-    movement += 6;
+    
 
     GLuint TextureSamplerId = ptShaderProg->getAttributeId("mTexel");
     pt2DTexture->Bind(GL_TEXTURE0);
@@ -402,10 +426,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 {
     int argc_ = 1;
     char* argv_ = const_cast<char*>("BuggiFly");
-    VideoFile vdFile(videoPath, 30);
+    VideoFile vdFile(videoPath, 1);
     ptCap = &vdFile;
-
-    
 
     //window creation
     glutInitWindowSize(windowWidth, windowHeight);
