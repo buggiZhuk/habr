@@ -365,7 +365,7 @@ void renderScene(void)
     
 
     GLuint TextureSamplerId = ptShaderProg->getAttributeId("mTexel");
-    pt2DTexture->Bind(GL_TEXTURE0);
+    pt2DTexture->Bind();
     glUniform1i(TextureSamplerId, 0);
 
     glDrawElements(GL_TRIANGLES, (linesInFlag * 2) * 3, GL_UNSIGNED_INT, ((void*)(0 * sizeof(GLuint))));
@@ -483,7 +483,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     createVertexData();
 
-    TextureLoader Texture(GL_TEXTURE_2D, 1);
+    TextureLoader Texture(GL_TEXTURE_2D, GL_TEXTURE0);
     pt2DTexture = &Texture;
     cv::Mat* firstFrame = nullptr;
     do

@@ -25,15 +25,14 @@ class TextureLoader
 {
     GLenum TexUnitFromInt(int num_in);
 
-    std::vector<TexData>    mTextureData;    
+    TexData                 mTextureData;    
     const GLenum            mTextureTarget;
-    GLuint                  mMaxTextures;
-    unsigned int            mCurrentTexture;
-    GLuint*                 mTextures;
+    GLuint                  mTexture;
+    GLenum                  mTextureUnit;
 
 public:
     TextureLoader();
-    TextureLoader(GLenum textureTarget_in, GLuint maxTextureNum_in);
+    TextureLoader(GLenum textureTarget_in, GLenum textureUnit_in);
     ~TextureLoader();
 
     TexData& operator[](GLenum textureUnit_in);
@@ -43,5 +42,5 @@ public:
 
     bool Load(GLubyte* texData_in, std::string name_in, int width_in, int height_in, GLenum format);
     bool RewriteTexture(GLubyte* texData_in, GLenum textureUnit_in, GLenum format);
-    bool Bind(GLenum textureUnit_in);
+    bool Bind(/*GLenum textureUnit_in*/);
 };
