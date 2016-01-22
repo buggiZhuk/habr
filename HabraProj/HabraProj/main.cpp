@@ -55,7 +55,7 @@ private:
 
     void cache()
     {
-        while (mCachedFrames < (mCacheSize -2))
+        while (mCachedFrames < mCacheSize-1)
         {
             if (!getImageFromCap(mCache[mCacheIndex]))
             {
@@ -141,11 +141,14 @@ public:
         }
 
         cv::Mat* result = mCache + mCurrentFrame;
-        std::lock_guard<std::mutex> guard(modifyingCache);
-        mCachedFrames--;
-        mCurrentFrame++;
-        mCurrentFrame = mCurrentFrame % mCacheSize;
-        if (mCachedFrames < (mCacheSize / 2) && !mCachingRunning)
+        {
+            std::lock_guard<std::mutex> guard(modifyingCache);
+            mCachedFrames--;
+            mCurrentFrame++;
+            mCurrentFrame = mCurrentFrame % mCacheSize;
+        }
+
+        if (mCachedFrames < (mCacheSize / 2))
         {
             mCachingRunning = true;
             std::thread t = std::thread(&VideoFile::cache, this);
@@ -492,7 +495,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     {
         firstFrame = vdFile.getNextFrame();
     } while (firstFrame == nullptr);
-    //getCameraImage(cap, frame);
+
     if (firstFrame->empty())
     {
         return -1;
@@ -502,5 +505,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     Texture.Load((*firstFrame).ptr(), "image", (*firstFrame).cols, (*firstFrame).rows, GL_BGR);
     glUniform1i(gSampler, 0);
     //glutFullScreenToggle();
+
     glutMainLoop();
 }
