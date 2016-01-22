@@ -8,18 +8,7 @@
 #include <mutex>
 #include <thread>
 
-class DataProvider
-{
-protected:
-    
-    
-public:
-    virtual cv::Mat* getNextFrame() = 0;
-    virtual double getFPS() = 0;
-    virtual void restoreFPS() = 0;
-    virtual void setFPS(double fps_in) = 0;
-};
-class VideoFile : public DataProvider
+class VideoFile
 {
 private:
 
@@ -55,6 +44,10 @@ private:
 
     void cache()
     {
+        if (!mCap.isOpened())
+        {
+            return;
+        }
         while (mCachedFrames < mCacheSize-1)
         {
             if (!getImageFromCap(mCache[mCacheIndex]))
@@ -148,7 +141,7 @@ public:
             mCurrentFrame = mCurrentFrame % mCacheSize;
         }
 
-        if (mCachedFrames < (mCacheSize / 2))
+        if (mCachedFrames < (mCacheSize / 2) && !mCachingRunning)
         {
             mCachingRunning = true;
             std::thread t = std::thread(&VideoFile::cache, this);
@@ -170,7 +163,6 @@ public:
 
 std::string fragmentShader("shaders\\habrFragmentShader.fs");
 std::string vertexShader("shaders\\habrVertexShader.vs");
-
 std::string waveFragmentShader("shaders\\habrWaveFragmentShader.fs");
 std::string waveVertexShader("shaders\\habrWaveVertexShader.vs");
 
@@ -178,21 +170,23 @@ std::string videoPath("b.mp4");
 bool paused = false;
 float movement = 2;
 double flagSpeed = 0.01;
-Matrix4x4 WVOProjection;
 
 int windowWidth = 1900;
 int windowHeight = 1000;
 int linesInFlag = 30;
+
+
+VideoFile* ptCap = nullptr;
+
+
 GLuint mVBO;        //vertices to draw
 GLuint mIBO;        //indecis to draw
-
-DataProvider* ptCap = nullptr;
-
-
 ShaderProgramm *ptShaderProg;
 ShaderProgramm *ptSimpleShaderProg;
 ShaderProgramm *ptWaveShaderProg;
 TextureLoader  *pt2DTexture;
+Matrix4x4 WVOProjection;
+
 bool wave = true;
 
 /*void getCameraImage(cv::VideoCapture &cap, cv::Mat &frame)
@@ -442,7 +436,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     ProjectionMatrix projMatr(1, 100, windowWidth, windowHeight, 30.0f);
     WVOProjection = projMatr * objectMatr;
-    VideoFile vdFile (videoPath, 40);
+    VideoFile vdFile (videoPath, 100);
     ptCap = &vdFile;
 
     //window creation
@@ -458,6 +452,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     glutIdleFunc(IddleFunc);
     glutDisplayFunc(renderScene);
     glutKeyboardFunc(KeyboardInput);
+    glutInitDisplayMode(GLUT_DOUBLE);
 
     glFrontFace(GL_CW);
     glCullFace(GL_BACK);

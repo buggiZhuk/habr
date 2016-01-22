@@ -43,7 +43,7 @@ bool TextureLoader::Load(GLubyte* texData_in, std::string name_in, int width_in,
     }
 
     glTexImage2D(mTextureTarget, 0, GL_RGBA, texData.mRealWidth, texData.mRealHeight, 0, format, GL_UNSIGNED_BYTE, (void*)textura);
-    //delete[] textura;
+
     glTexParameterf(mTextureTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameterf(mTextureTarget, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
@@ -55,94 +55,11 @@ bool TextureLoader::Load(GLubyte* texData_in, std::string name_in, int width_in,
     texData.mTextureUnit = currentTexUnit;
     mTextureData.push_back(texData);
 
-    //uglu hack!!
+    //ugly hack!!
     mCurrentTexture++;
     return true;
 }
-/*
-bool TextureLoader::Load(boost::filesystem::path path_in, std::string name_in)
-{
 
-    if (mCurrentTexture == mMaxTextures)
-    {
-        buggi::general::InvalidArgumentException argException("Max Amount of textures has been already loaded");
-        throw argException;
-    }
-    /*
-    TODO:
-    check name_in for unique
-    */
-    /*if (path_in.empty())
-    {
-        std::cout << "path is empty, do nothing";
-        return false;
-    }
-    
-    FREE_IMAGE_FORMAT fif = FIF_UNKNOWN;
-    fif = FreeImage_GetFileType((path_in.string().c_str()), 0);
-    if (fif == FIF_UNKNOWN)
-    {
-        std::cout << "could not get type of image";
-        return false;
-        /*
-        TODO: thow exception
-        */
-    /*}
-
-    if (fif != FIF_PNG) {
-        std::cout << "only PNG format is supported";
-        return false;
-    }
-    
-    FIBITMAP* bitmap = FreeImage_Load(fif, path_in.string().c_str());
-    if (bitmap == NULL)
-    {
-        std::cout << "Could not parse image";
-        return false;
-        /*
-        todo:
-        throw exception;
-        */
-    /*}
-
-
-    FIBITMAP* bitmap32 = FreeImage_ConvertTo32Bits(bitmap);
-    if (bitmap32 == NULL)
-    {
-        std::cout << "can not convert image to RGB!";
-        return false;
-        /*
-        todo:
-        throw exception;
-        */
-    /*}
-    FreeImage_Unload(bitmap);
-    TexData texData;
-    texData.mRealWidth  = FreeImage_GetWidth(bitmap32);
-    texData.mRealHeight = FreeImage_GetHeight(bitmap32);
-    texData.mName       = name_in;
-
-    std::cout << std::endl << "Image loaded and converted:" << std::endl \
-        << "path:   " << path_in << std::endl \
-        << "width:  " << texData.mRealWidth << std::endl \
-        << "height: " << texData.mRealHeight << std::endl;
-
-    /*
-    TODO: remove this copypasted, dengereos, unknown code. I don't know how and why does it work;
-    */
-    /*BYTE* pixeles = FreeImage_GetBits(bitmap32);
-    GLubyte* textura = new GLubyte[4 * texData.mRealWidth*texData.mRealHeight];
-    for (int j = 0; j<texData.mRealWidth*texData.mRealHeight; j++){
-        textura[j * 4 + 0] = pixeles[j * 4 + 2];
-        textura[j * 4 + 1] = pixeles[j * 4 + 1];
-        textura[j * 4 + 2] = pixeles[j * 4 + 0];
-        textura[j * 4 + 3] = pixeles[j * 4 + 3];
-        //cout<<j<<": "<<textura[j*4+0]<<"**"<<textura[j*4+1]<<"**"<<textura[j*4+2]<<"**"<<textura[j*4+3]<<endl;
-    }
-    FreeImage_Unload(bitmap32);
-    return Load(textura, name_in, texData.mRealWidth, texData.mRealHeight, GL_RGBA);   
-}
-*/
 TexData& TextureLoader::operator[](GLenum textureUnit_in)
 {
     for (int i = 0; i < mTextureData.size(); i++)

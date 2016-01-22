@@ -1,8 +1,5 @@
 #pragma once
 
-#include <string>
-#include <map>
-
 class ShaderProgramm
 {
 private:
