@@ -373,14 +373,14 @@ void renderScene(void)
     glutSwapBuffers();
 }
 
-void createVertexData()
+void createVertexData(int widht, int height)
 {
     glGenBuffers(1, &mVBO);
     glGenBuffers(1, &mIBO);
     std::vector<OglVertexType> vertices;
     std::vector<GLuint> indecis;
 
-    genFlag(3840.0 / 2160.0, 1, linesInFlag, vertices, indecis);
+    genFlag(((double)widht) / height, 1, linesInFlag, vertices, indecis);
 
     if (!vertices.empty())
     {
@@ -428,11 +428,12 @@ std::string getGLSLversionFromVersionString(const GLubyte* fromGL_in)
 
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
+//int fn()
 {
     int argc_ = 1;
     char* argv_ = const_cast<char*>("BuggiFly");
     Matrix4x4 objectMatr;
-    objectMatr[2][3] = 5;
+    objectMatr[2][3] = 2.5;
 
     ProjectionMatrix projMatr(1, 100, windowWidth, windowHeight, 30.0f);
     WVOProjection = projMatr * objectMatr;
@@ -481,15 +482,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     ptSimpleShaderProg = &ShaderProg;
     ptWaveShaderProg = &WavedShaderProg;
 
-    createVertexData();
-
-    TextureLoader Texture(GL_TEXTURE_2D, GL_TEXTURE0);
-    pt2DTexture = &Texture;
     cv::Mat* firstFrame = nullptr;
     do
     {
         firstFrame = vdFile.getNextFrame();
     } while (firstFrame == nullptr);
+    createVertexData(firstFrame->cols, firstFrame->rows);
+
+    TextureLoader Texture(GL_TEXTURE_2D, GL_TEXTURE0);
+    pt2DTexture = &Texture;
+    
 
     if (firstFrame->empty())
     {
@@ -499,7 +501,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     GLuint gSampler = ShaderProg.getAttributeId("mTexel");
     Texture.Load((*firstFrame).ptr(), "image", (*firstFrame).cols, (*firstFrame).rows, GL_BGR);
     glUniform1i(gSampler, 0);
-    //glutFullScreenToggle();
 
     glutMainLoop();
 }

@@ -113,12 +113,3 @@ bool TextureLoader::Bind()
 
     return true;
 }
-
-/*TextureLoader::TextureLoader()  : mTextureData()
-                                , mTextureTarget(GL_NONE)
-                                , mMaxTextures(0)
-                                , mCurrentTexture(0)
-                                , mTextures(nullptr)
-{
-
-}*/
