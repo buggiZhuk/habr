@@ -32,7 +32,7 @@ bool TextureLoader::Load(GLubyte* texData_in, std::string name_in, int width_in,
     mTextureData.mName = name_in;
 
     GLubyte* textura = texData_in;
-
+    glActiveTexture(mTextureUnit);
     glBindTexture(mTextureTarget, mTexture);
     if (glGetError() != GL_NO_ERROR)
     {
@@ -95,7 +95,7 @@ bool TextureLoader::Bind()
     }
 
     glActiveTexture(mTextureUnit);
-    glBindTexture(mTextureTarget, mTexture);
+    //glBindTexture(mTextureTarget, mTexture);
 
     return true;
 }
