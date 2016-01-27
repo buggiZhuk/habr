@@ -103,6 +103,7 @@ bool ShaderProgramm::AddShader(std::string & shaderText_in, GLenum shaderType_in
         GLchar InfoLog[1024];
         glGetShaderInfoLog(ShaderObj, 1024, NULL, InfoLog);
         std::cout << "Error compiling shader type" << shaderTypeToString(shaderType_in) << InfoLog;
+        glDeleteShader(ShaderObj);
         return false;
     }
 
@@ -125,6 +126,8 @@ bool ShaderProgramm::LinkProgramm()
     if (Success == 0) {
         glGetProgramInfoLog(mProgramId, sizeof(ErrorLog), NULL, ErrorLog);
         fprintf(stderr, "Error linking shader program: '%s'\n", ErrorLog);
+        glDeleteProgram(mProgramId);
+        mProgramId = 0;
         return false;
     }
 
@@ -133,6 +136,8 @@ bool ShaderProgramm::LinkProgramm()
     if (!Success) {
         glGetProgramInfoLog(mProgramId, sizeof(ErrorLog), NULL, ErrorLog);
         fprintf(stderr, "Invalid shader program: '%s'\n", ErrorLog);
+        glDeleteProgram(mProgramId);
+        mProgramId = 0;
         return false;
     }
 

@@ -8,7 +8,8 @@ TextureLoader::TextureLoader(GLenum textureTarget_in, GLenum textureUnit_in) : m
                                                                                 , mTextureTarget(textureTarget_in)
                                                                                 , mTexture(0)
                                                                                 , mTextureUnit(textureUnit_in)
-{   
+{
+    glGenTextures(1, &mTexture);
 }
 
 TextureLoader::~TextureLoader()
@@ -49,21 +50,6 @@ bool TextureLoader::Load(GLubyte* texData_in, std::string name_in, int width_in,
     refactor: filing texData should be in one place
     */
     mTextureData.mTextureUnit = mTextureUnit;
-
-    return true;
-}
-
-bool TextureLoader::getTextureVars()
-{
-    glGenTextures(1, &mTexture);
-
-    glBindTexture(mTextureTarget, mTexture);
-
-    if (glGetError() != GL_NO_ERROR)
-    {
-        std::cout << "can not generate texture";
-        return false;
-    }
 
     return true;
 }

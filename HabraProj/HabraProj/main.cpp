@@ -446,14 +446,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     glutInit(&argc_, &argv_);
     glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH | GLUT_MULTISAMPLE);
     glutCreateWindow("HabraProj");
-
-    glewInit();
-
-    //glut callbacks
     glutIdleFunc(IddleFunc);
     glutDisplayFunc(renderScene);
     glutKeyboardFunc(KeyboardInput);
     glutInitDisplayMode(GLUT_DOUBLE);
+
+    glewInit();
 
     glFrontFace(GL_CW);
     glCullFace(GL_BACK);
@@ -497,7 +495,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     {
         return -1;
     }
-    Texture.getTextureVars();
     GLuint gSampler = ShaderProg.getAttributeId("mTexel");
     Texture.Load((*firstFrame).ptr(), "image", (*firstFrame).cols, (*firstFrame).rows, GL_BGR);
     glUniform1i(gSampler, 0);
