@@ -7,13 +7,14 @@
 #include "opencv2/opencv.hpp"
 #include <mutex>
 #include <thread>
+#include <atomic>
 
 class VideoFile
 {
 private:
 
     cv::VideoCapture mCap;
-    bool mCacheRunning;
+    //bool mCacheRunning;
     cv::Mat* mCache;
     unsigned int mCacheSize;
     double mFPS;
@@ -21,7 +22,8 @@ private:
     unsigned int mCurrentFrame;
     unsigned int mCachedFrames;
     unsigned int mCacheIndex;
-    bool mCachingRunning;
+    std::atomic<bool> mCachingRunning;
+    std::atomic<bool> mStopCachingNeeded;
 
     std::mutex modifyingCache;
 
@@ -44,12 +46,18 @@ private:
 
     void cache()
     {
+        mCachingRunning = true;
         if (!mCap.isOpened())
         {
             return;
         }
         while (mCachedFrames < mCacheSize-1)
         {
+            if (mStopCachingNeeded)
+            {
+                mCachingRunning = false;
+                return;
+            }
             if (!getImageFromCap(mCache[mCacheIndex]))
             {
                 mCachingRunning = false;
@@ -66,8 +74,7 @@ private:
     }
 
 public:
-    VideoFile(const std::string& path_in, unsigned int cacheSize_in)    : mCacheRunning(true)
-                                                                        , mCache(new cv::Mat[cacheSize_in])
+    VideoFile(const std::string& path_in, unsigned int cacheSize_in)    : mCache(new cv::Mat[cacheSize_in])
                                                                         , mCacheSize(cacheSize_in)
                                                                         , mFPS(0)
                                                                         , mCurrentFrame(0)
@@ -75,6 +82,7 @@ public:
                                                                         , mCacheIndex(0)
                                                                         , modifyingCache()
                                                                         , mCachingRunning(true)
+                                                                        , mStopCachingNeeded(false)
     {
 
         mCap.open(path_in);
@@ -89,15 +97,15 @@ public:
         }
     }
 
-    VideoFile() :                 mCacheRunning(true)
-                                , mCache(new cv::Mat[3])
+    VideoFile() :               mCache(new cv::Mat[3])
                                 , mCacheSize(3)
                                 , mFPS(0)
                                 , mCurrentFrame(0)
                                 , mCachedFrames(0)
                                 , mCacheIndex(0)
                                 , modifyingCache()
-                                , mCachingRunning(true)
+                                , mCachingRunning(false)
+                                , mStopCachingNeeded(false)
     {
 
         mCap.open(0);
@@ -123,6 +131,11 @@ public:
 
     ~VideoFile()
     {
+        mStopCachingNeeded = true;
+        while (mCachingRunning)
+        {          
+            std::this_thread::yield();
+        }
         delete[] mCache;
     }
 
@@ -141,10 +154,10 @@ public:
             mCurrentFrame = mCurrentFrame % mCacheSize;
         }
 
-        if (mCachedFrames < (mCacheSize / 2) && !mCachingRunning)
+        if (mCachedFrames < (mCacheSize / 2) && !mCachingRunning && !mStopCachingNeeded)
         {
             mCachingRunning = true;
-            std::thread t = std::thread(&VideoFile::cache, this);
+            t = std::thread(&VideoFile::cache, this);
             t.detach();
         }
         else {
@@ -170,9 +183,10 @@ std::string videoPath("b.mp4");
 bool paused = false;
 float movement = 2;
 double flagSpeed = 0.01;
+bool useCamera = false;
 
-int windowWidth = 1900;
-int windowHeight = 1000;
+int windowWidth = 100;
+int windowHeight = 100;
 int linesInFlag = 30;
 
 
@@ -213,6 +227,19 @@ void KeyboardInput(unsigned char key_in, int x_in, int y_in)
     static bool fpsSwitch = true;
     switch (key_in)
     {
+    case 'r':
+    case 'R':
+        delete ptCap;
+        useCamera = !useCamera;
+        if (useCamera)
+        {
+            ptCap = new VideoFile(videoPath, 100);
+        }
+        else
+        {
+            ptCap = new VideoFile(videoPath, 100);
+        }
+        break;
     case 'f':
     case 'F':
         
@@ -230,8 +257,6 @@ void KeyboardInput(unsigned char key_in, int x_in, int y_in)
         flagSpeed += 0.002;
         break;
     case 's':
-        //static bool useCamera = true;
-        //useCamera = !useCamera;
         flagSpeed -= 0.002;
         break;
     case 'p':
@@ -437,8 +462,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     ProjectionMatrix projMatr(1, 100, windowWidth, windowHeight, 30.0f);
     WVOProjection = projMatr * objectMatr;
-    VideoFile vdFile (videoPath, 100);
-    ptCap = &vdFile;
+
+    ptCap = new VideoFile(videoPath, 100);
 
     //window creation
     glutInitWindowSize(windowWidth, windowHeight);
@@ -483,7 +508,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     cv::Mat* firstFrame = nullptr;
     do
     {
-        firstFrame = vdFile.getNextFrame();
+        firstFrame = ptCap->getNextFrame();
     } while (firstFrame == nullptr);
     createVertexData(firstFrame->cols, firstFrame->rows);
 
