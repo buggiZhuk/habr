@@ -104,7 +104,7 @@ public:
                                 , mCachedFrames(0)
                                 , mCacheIndex(0)
                                 , modifyingCache()
-                                , mCachingRunning(false)
+                                , mCachingRunning(true)
                                 , mStopCachingNeeded(false)
     {
 
@@ -233,11 +233,11 @@ void KeyboardInput(unsigned char key_in, int x_in, int y_in)
         useCamera = !useCamera;
         if (useCamera)
         {
-            ptCap = new VideoFile(videoPath, 100);
+            ptCap = new VideoFile;
         }
         else
         {
-            ptCap = new VideoFile(videoPath, 100);
+            ptCap = new VideoFile(videoPath, 20);
         }
         break;
     case 'f':
